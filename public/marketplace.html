@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Agent Tool Market</title>
+    <style>
+      :root { color-scheme: light; font-family: Inter, ui-sans-serif, system-ui, sans-serif; background: #f5f7f8; color: #17201d; }
+      * { box-sizing: border-box; }
+      body { margin: 0; }
+      header { background: #153c32; color: white; padding: 18px clamp(20px, 5vw, 72px); display: flex; align-items: center; justify-content: space-between; }
+      header strong { font-size: 18px; }
+      header span { color: #b9d8ce; font-size: 13px; }
+      main { width: min(1080px, calc(100% - 32px)); margin: 36px auto; display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 0.85fr); gap: 28px; }
+      h1 { margin: 0 0 10px; font-size: clamp(30px, 5vw, 52px); line-height: 1.05; letter-spacing: 0; }
+      .intro { color: #52615d; max-width: 640px; line-height: 1.6; }
+      .catalog { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 28px; }
+      .tool { min-height: 128px; background: white; border: 1px solid #dce4e1; border-radius: 8px; padding: 18px; }
+      .tool b { display: block; margin-bottom: 8px; }
+      .tool p { margin: 0; color: #61706b; font-size: 14px; line-height: 1.5; }
+      .badge { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; background: #e0a52b; }
+      aside { background: #fff; border-left: 4px solid #e0a52b; padding: 24px; min-height: 420px; box-shadow: 0 12px 30px rgba(23, 32, 29, 0.08); }
+      aside h2 { margin: 0 0 6px; font-size: 20px; }
+      label { display: block; font-size: 13px; font-weight: 700; margin: 22px 0 8px; }
+      textarea { width: 100%; min-height: 96px; resize: vertical; border: 1px solid #bdc9c5; border-radius: 6px; padding: 12px; font: inherit; }
+      button { width: 100%; margin-top: 10px; border: 0; border-radius: 6px; padding: 12px 16px; background: #16765e; color: white; font: inherit; font-weight: 700; cursor: pointer; }
+      button:disabled { opacity: 0.55; cursor: wait; }
+      #answer { margin-top: 22px; white-space: pre-wrap; line-height: 1.65; min-height: 120px; color: #2c3834; }
+      #status { color: #66746f; font-size: 12px; }
+      @media (max-width: 760px) { main { grid-template-columns: 1fr; margin-top: 24px; } .catalog { grid-template-columns: 1fr; } }
+    </style>
+  </head>
+  <body>
+    <header><strong>Agent Tool Market</strong><span>Curated building blocks</span></header>
+    <main>
+      <section>
+        <h1>Choose the next tool in your agent stack.</h1>
+        <p class="intro">Browse focused components, then ask the marketplace guide to compare them against the orchestration job your agent needs to perform.</p>
+        <div class="catalog">
+          <article class="tool"><b><span class="badge"></span>Receipt Reader</b><p>Turns transaction documents into structured tool inputs.</p></article>
+          <article class="tool"><b><span class="badge"></span>Queue Planner</b><p>Breaks a long-running objective into observable work items.</p></article>
+          <article class="tool"><b><span class="badge"></span>Policy Check</b><p>Evaluates proposed tool calls before an agent executes them.</p></article>
+          <article class="tool"><b><span class="badge"></span>Result Reranker</b><p>Orders retrieved evidence before the next reasoning step.</p></article>
+        </div>
+      </section>
+      <aside>
+        <h2>Marketplace guide</h2>
+        <div id="status">Ready for a developer question</div>
+        <form id="guide-form">
+          <label for="question">What should your agent do?</label>
+          <textarea id="question" required>Compare tools for an agent that validates receipts before creating reimbursement tasks.</textarea>
+          <button type="submit">Stream recommendation</button>
+        </form>
+        <div id="answer" aria-live="polite"></div>
+      </aside>
+    </main>
+    <script>
+      const form = document.querySelector("#guide-form");
+      const question = document.querySelector("#question");
+      const answer = document.querySelector("#answer");
+      const status = document.querySelector("#status");
+      const button = form.querySelector("button");
+      let stream;
+
+      form.addEventListener("submit", (event) => {
+        event.preventDefault();
+        stream?.close();
+        answer.textContent = "";
+        status.textContent = "Agent is comparing tools";
+        button.disabled = true;
+        stream = new EventSource(`/api/recommendations?question=${encodeURIComponent(question.value)}`);
+
+        stream.addEventListener("token", (message) => {
+          answer.textContent += JSON.parse(message.data).text;
+        });
+        stream.addEventListener("complete", () => {
+          status.textContent = "Recommendation complete";
+          button.disabled = false;
+          stream.close();
+        });
+        stream.addEventListener("error", (message) => {
+          if (message.data) answer.textContent = JSON.parse(message.data).message;
+          status.textContent = "Stream ended";
+          button.disabled = false;
+          stream.close();
+        });
+      });
+    </script>
+  </body>
+</html>
