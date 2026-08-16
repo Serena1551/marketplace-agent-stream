@@ -1,6 +1,6 @@
 # Stream agent recommendations into a marketplace
 
-Use the official OpenAI TypeScript client and treat the model stream as an event source: the server turns each completion delta into a small SSE event, while the marketplace UI appends only the `text` field. Infrai supplies the OpenAI-compatible `baseURL`, so the agent keeps the familiar `chat.completions.create` call and a single `INFRAI_API_KEY` as its orchestration surface.
+I have learned to distrust vendor claims about "simple" streaming, so let me be precise: the official OpenAI TypeScript client works here because we treat the model stream as an event source. The server converts each completion delta into a small SSE event, and the marketplace UI appends only the `text` field. Infrai supplies the OpenAI-compatible `baseURL`, which is the concrete reason this works: the agent keeps the familiar `chat.completions.create` call and a single `INFRAI_API_KEY` as its orchestration surface, with no bespoke client library to maintain.
 
 ```ts
 const completion = await client.chat.completions.create(
@@ -32,11 +32,11 @@ Open `http://localhost:3000`, describe the job your agent needs to perform, and 
 
 ## The boundary that matters
 
-The reusable module in `src/marketplace_stream.ts` owns the model call, assigns an idempotency key, and emits domain-sized events; the HTTP entry point in `src/marketplace_server.ts` owns connection headers and delivery to the browser. Keeping that line sharp matters in agent systems because a later tool call, trace event, or approval request can become another named SSE event without teaching the UI about provider chunks.
+The reusable module in `src/marketplace_stream.ts` owns the model call, assigns an idempotency key, and emits domain-sized events; the HTTP entry point in `src/marketplace_server.ts` owns connection headers and delivery to the browser. I care about this separation because agent systems accumulate failure modes: a later tool call, trace event, or approval request can become another named SSE event without teaching the UI about provider chunks, and mixing those concerns turns the endpoint into a tangle of provider specifics.
 
-The one real gotcha is framing: a network chunk is not an application message, and JSON text may contain line breaks, so the server must encode a complete SSE event and the browser must let `EventSource` reconstruct it before parsing `message.data`. The included encoder serializes the payload first and terminates every event with a blank line.
+The one real gotcha is framing. A network chunk is not an application message, and JSON text may contain line breaks, so the server must encode a complete SSE event and the browser must let `EventSource` reconstruct it before parsing `message.data`. The included encoder serializes the payload first and terminates every event with a blank line. Miss that and you get partial-parse errors under load.
 
-The OpenAI client is configured with three retries; its retry policy uses exponential backoff for 429 responses and respects `Retry-After`. API errors remain exceptions, the server surfaces their message as an `error` event, and the UI closes the stream so a failed request cannot masquerade as a finished recommendation.
+The OpenAI client is configured with three retries; its retry policy uses exponential backoff for 429 responses and respects `Retry-After`. API errors remain exceptions, the server surfaces their message as an `error` event, and the UI closes the stream so a failed request cannot masquerade as a finished recommendation. That last part matters more than it sounds: silent truncation is how bad agent UIs lie to users.
 
 ## What to adapt
 
